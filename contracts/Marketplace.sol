@@ -4,7 +4,7 @@ pragma solidity ^0.8.18;
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
 
-contract Marketplace is ERC721URIStorage {
+contract Marketplace is ERC721URIStorage /* , Ownable */ { // Descomenta ", Ownable" si lo usas
     using Counters for Counters.Counter;
     Counters.Counter private _tokenIds;
 
@@ -14,9 +14,7 @@ contract Marketplace is ERC721URIStorage {
         bool isSold;
     }
 
-    // tokenId => Listing
     mapping(uint256 => Listing) private listings;
-    // vendedor => fondos acumulados
     mapping(address => uint256) private proceeds;
 
     event ItemListed(
@@ -32,10 +30,11 @@ contract Marketplace is ERC721URIStorage {
 
     constructor() ERC721("MyNFT", "MNFT") {}
 
+
     /**
-     * @dev Mint y lista el NFT en el marketplace
-     * @param _uri URI de metadata
-     * @param _price Precio en wei (>0)
+     * @dev Mints and lists a single NFT in the marketplace.
+     * @param _uri Metadata URI for the NFT.
+     * @param _price Price in wei (must be > 0).
      */
     function mintAndList(string memory _uri, uint256 _price) external {
         require(_price > 0, "Price must be > 0");
@@ -56,27 +55,58 @@ contract Marketplace is ERC721URIStorage {
     }
 
     /**
-     * @dev Compra un NFT listado
-     * @param _tokenId ID del token a comprar
+     * @dev Mints and lists multiple NFTs in a single transaction.
+     * @param _uris Array of metadata URIs for the NFTs.
+     * @param _prices Array of prices in wei for the NFTs. Prices must be > 0.
+     * The length of _uris and _prices arrays must be the same and > 0.
+     */
+    // Descomenta "onlyOwner" si quieres restringir esta función al dueño del contrato
+    function batchMintAndList(string[] memory _uris, uint256[] memory _prices) external /* onlyOwner */ {
+        require(_uris.length == _prices.length, "URIs and prices array length mismatch");
+        require(_uris.length > 0, "Cannot mint zero items");
+
+        for (uint256 i = 0; i < _uris.length; i++) {
+            require(_prices[i] > 0, "Price must be > 0 for all items");
+
+            _tokenIds.increment();
+            uint256 newTokenId = _tokenIds.current();
+
+            _mint(msg.sender, newTokenId); // Mints to the caller (e.g., contract owner or an admin)
+            _setTokenURI(newTokenId, _uris[i]);
+
+            listings[newTokenId] = Listing({
+                seller: msg.sender, // The caller becomes the seller for all minted items
+                price: _prices[i],
+                isSold: false
+            });
+
+            emit ItemListed(newTokenId, msg.sender, _prices[i]);
+        }
+    }
+
+
+    /**
+     * @dev Buys a listed NFT.
+     * @param _tokenId ID of the token to buy.
      */
     function buy(uint256 _tokenId) external payable {
         Listing storage item = listings[_tokenId];
 
+        require(_tokenId > 0 && _tokenId <= _tokenIds.current(), "Invalid tokenId");
         require(!item.isSold, "Already sold");
         require(msg.value == item.price, "Incorrect price");
+        require(item.seller != address(0), "Item not listed");
 
+        address originalSeller = item.seller;
         item.isSold = true;
-        // acumular fondos para el vendedor
-        proceeds[item.seller] += msg.value;
-
-        // transferir NFT al comprador
-        _transfer(item.seller, msg.sender, _tokenId);
+        proceeds[originalSeller] += msg.value;
+        _transfer(originalSeller, msg.sender, _tokenId);
 
         emit ItemSold(_tokenId, msg.sender, msg.value);
     }
 
     /**
-     * @dev Devuelve la info de un listing
+     * @dev Returns listing information for a token.
      */
     function getListing(uint256 _tokenId)
         external
@@ -87,18 +117,30 @@ contract Marketplace is ERC721URIStorage {
             bool isSold
         )
     {
+        require(_tokenId > 0 && _tokenId <= _tokenIds.current(), "Query for non-existent token");
         Listing storage item = listings[_tokenId];
         return (item.seller, item.price, item.isSold);
     }
 
     /**
-     * @dev Permite al vendedor retirar sus fondos acumulados
+     * @dev Allows a seller to withdraw their accumulated funds.
      */
     function withdraw() external {
         uint256 amount = proceeds[msg.sender];
         require(amount > 0, "No funds to withdraw");
 
         proceeds[msg.sender] = 0;
-        payable(msg.sender).transfer(amount);
+        (bool success, ) = payable(msg.sender).call{value: amount}("");
+        require(success, "Transfer failed.");
     }
+
+    /**
+     * @dev Returns the ID of the latest minted token.
+     * Returns 0 if no tokens have been minted.
+     */
+    function getLatestTokenId() external view returns (uint256) {
+        return _tokenIds.current();
+    }
+
+    
 }
