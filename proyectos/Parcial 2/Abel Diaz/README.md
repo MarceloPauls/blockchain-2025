@@ -2,8 +2,10 @@
 
 Este mini-proyecto es una aplicación descentralizada (DApp) que permite **listar, comprar y mintear NFTs** utilizando contratos inteligentes en Solidity y una interfaz web construida con React + Vite.
 
-> ✅ **Contrato desplegado en Ephemery:**  
-> `0x8c547442417dDd339ED6Be936CFF73e92BDd930E`
+
+> ✅ **Contrato desplegado en Ephemery (VERSIÓN SEGURA):**  
+> `0xe32Caf38a740464cbCe1492041a81259870fF203`
+
 
 ---
 ## 🎯 Demo en Vivo
@@ -11,6 +13,17 @@ Este mini-proyecto es una aplicación descentralizada (DApp) que permite **lista
 Puedes ver y probar el proyecto en vivo aquí:
 
 👉 [Prueba en Vivo - Parcial2](https://parcial2-murex.vercel.app/)
+
+
+## 🔒 Mejoras de Seguridad Implementadas
+
+Este proyecto incluye las siguientes medidas de seguridad:
+
+- ✅ **Protección contra Re-entrancy**: Uso de `ReentrancyGuard` en funciones críticas
+- ✅ **Validación de pagos exactos**: La función `buy()` requiere pago exacto (`msg.value == listing.price`)
+- ✅ **Patrón de transferencia seguro**: Uso de `call()` en lugar de `transfer()` para envío de fondos
+- ✅ **Prevención de sobrepagos**: Eliminada la vulnerabilidad que permitía sobrepagar sin reembolso
+
 
 ## ⚙️ Requisitos Previos
 
@@ -36,7 +49,7 @@ Crea un archivo `.env` con:
 
 ```
 VITE_RPC_URL=https://otter.bordel.wtf/erigon
-VITE_CONTRACT_ADDRESS=0x8c547442417dDd339ED6Be936CFF73e92BDd930E
+VITE_CONTRACT_ADDRESS=0xe32Caf38a740464cbCe1492041a81259870fF203
 ```
 
 ---

@@ -3,10 +3,11 @@ pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 /// @title NFT Marketplace
 /// @notice Contrato para la venta y compra de NFTs
-contract Marketplace is ERC721, Ownable {
+contract Marketplace is ERC721, Ownable, ReentrancyGuard {
     uint96 public constant MAX_SUPPLY = 1000;
 
     struct Listing {
@@ -71,16 +72,16 @@ contract Marketplace is ERC721, Ownable {
 
     /// @notice Compra un NFT listado
     /// @param _tokenId ID del token a comprar
-    function buy(uint256 _tokenId) public payable {
+    function buy(uint256 _tokenId) public payable nonReentrant {
         emit DebugValueReceived(msg.value);
 
         Listing storage listing = listings[_tokenId];
         require(listing.price > 0, "NFT no listado");
         require(!listing.isSold, "Already sold");
-        require(msg.value >= listing.price, "Insufficient funds");
+        require(msg.value == listing.price, "Exact payment required");
 
         listing.isSold = true;
-        pendingWithdrawals[listing.seller] += msg.value;
+        pendingWithdrawals[listing.seller] += listing.price;
 
         _safeTransfer(address(this), msg.sender, _tokenId, "");
 
@@ -105,11 +106,14 @@ contract Marketplace is ERC721, Ownable {
     }
 
     /// @notice Retira los fondos acumulados
-    function withdraw() public {
+    function withdraw() public nonReentrant {
         uint256 amount = pendingWithdrawals[msg.sender];
         require(amount > 0, "Nothing to withdraw");
 
         pendingWithdrawals[msg.sender] = 0;
-        payable(msg.sender).transfer(amount);
+        
+        // Usar call en lugar de transfer para mejor seguridad
+        (bool success, ) = payable(msg.sender).call{value: amount}("");
+        require(success, "Transfer failed");
     }
 }
